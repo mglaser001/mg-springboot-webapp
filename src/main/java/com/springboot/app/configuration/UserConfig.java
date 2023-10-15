@@ -14,7 +14,7 @@ public class UserConfig {
 
     @Bean
     CommandLineRunner commandLineRunner(UserRepository repository){
-        return args -> {User first =new User( "First",  "te@st", true, LocalDateTime.now());
+        return args -> {User first =new User( "First",  "Last", "Email","pw", User.AppUserRole.USER);
         repository.saveAll(List.of(first));
         };
     }

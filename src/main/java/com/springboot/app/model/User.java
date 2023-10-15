@@ -1,14 +1,32 @@
 package com.springboot.app.model;
 
 import jakarta.persistence.*;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.userdetails.UserDetails;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.Period;
+import java.util.Collection;
+import java.util.Collections;
 
 @Entity
 @Table(name = "users")
-public class User {
+@Getter
+@Setter
+@EqualsAndHashCode
+@NoArgsConstructor
+public class User implements UserDetails {
+
+    public enum AppUserRole{
+        USER,
+        ADMIN
+    }
     @Id
     @SequenceGenerator(
             name = "user_sequence",
@@ -21,88 +39,62 @@ public class User {
     )
     @Column(nullable = false, updatable = false)
     private Long id;
-    private String name;
+    private String firstName;
+    private String lastName;
+    private String password;
 //    @Transient <- used to not save column / use column in class
     private Integer age;
     private String email;
 
-    private Boolean active;
+    private Boolean enabled = false;
     private LocalDateTime createDate;
+    @Enumerated(EnumType.STRING)
+    private AppUserRole appUserRole;
+    private Boolean locked = false;
 
-    public User() {
-    }
 
-    public User(Long id, String name, String email, Boolean active, LocalDateTime createDate) {
-        this.active = active;
-        this.id = id;
-        this.name = name;
+    public User(String firstName, String lastName, String email, String password, AppUserRole role) {
+        this.password = password;
+        this.firstName = firstName;
+        this.lastName = lastName;
         this.email = email;
-        this.createDate = createDate;
-    }
-
-    public User(String name, String email, Boolean active,LocalDateTime createDate) {
-        this.active = active;
-        this.name = name;
-        this.email = email;
-        this.createDate = createDate;
-    }
-
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public String getName() {
-        return name;
-    }
-
-    public void setName(String name) {
-        this.name = name;
-    }
-
-    public Integer getAge() {
-        return age;
-    }
-
-    public void setAge(Integer age) {
-        this.age = age;
-    }
-
-    public String getEmail() {
-        return email;
-    }
-
-    public void setEmail(String email) {
-        this.email = email;
-    }
-
-    public LocalDateTime getCreateDate() {
-        return createDate;
-    }
-
-    public void setCreateDate(LocalDateTime createDate) {
-        this.createDate = createDate;
-    }
-
-    public Boolean getActive() {
-        return active;
-    }
-
-    public void setActive(Boolean active) {
-        this.active = active;
+        this.appUserRole = role;
     }
 
     @Override
-    public String toString() {
-        return "User{" +
-                "id=" + id +
-                ", name='" + name + '\'' +
-                ", age=" + age +
-                ", email='" + email + '\'' +
-                ", createDate=" + createDate +
-                '}';
+    public Collection<? extends GrantedAuthority> getAuthorities() {
+        SimpleGrantedAuthority simpleGrantedAuthority = new SimpleGrantedAuthority(appUserRole.name());
+
+        return Collections.singletonList(simpleGrantedAuthority);
+    }
+
+    @Override
+    public String getPassword() {
+        return password;
+    }
+
+    @Override
+    public String getUsername() {
+        return email;
+    }
+
+    @Override
+    public boolean isAccountNonExpired() {
+        return true;
+    }
+
+    @Override
+    public boolean isAccountNonLocked() {
+        return !locked;
+    }
+
+    @Override
+    public boolean isCredentialsNonExpired() {
+        return true;
+    }
+
+    @Override
+    public boolean isEnabled() {
+        return enabled;
     }
 }

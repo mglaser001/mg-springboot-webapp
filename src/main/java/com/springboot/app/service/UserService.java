@@ -2,23 +2,29 @@ package com.springboot.app.service;
 
 import com.springboot.app.model.User;
 import com.springboot.app.repo.UserRepository;
+import com.springboot.app.token.ConfirmationToken;
 import jakarta.transaction.Transactional;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.AllArgsConstructor;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 @Service
-public class UserService {
+@AllArgsConstructor
+public class UserService implements UserDetailsService {
 
     private final UserRepository userRepository;
+    private final BCryptPasswordEncoder bCryptPasswordEncoder;
+    private final ConfimationTokenService confimationTokenService;
 
-    @Autowired
-    public UserService(UserRepository userRepository){
-        this.userRepository = userRepository;
-    }
+    private final static String USER_NOT_FOUND = "User with email %s Not Found";
     public List<User> getUsers(){
         return userRepository.findAll();
     }
@@ -27,14 +33,18 @@ public class UserService {
         Optional<User> user = userRepository.findById(id);
         return user.isPresent() ? user.get() : null;
     }
-
-    public void createNewUser(User user) {
-        Optional<User> userByEmail = userRepository.findUserByEmail(user.getEmail());
-
-        if(userByEmail.isPresent()){
-            throw new IllegalArgumentException("Email Address already in use.");
-        }
-        userRepository.save(user);
+    public User getUserByEmail(String email){
+        User user = userRepository.findUserByEmail(email).orElseThrow( () ->new UsernameNotFoundException(String.format(USER_NOT_FOUND, email)));
+        return user;
+    }
+    @Override
+    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
+        User user = userRepository.findUserByEmail(username).orElseThrow( () ->new UsernameNotFoundException(String.format(USER_NOT_FOUND, username)));
+        return user;
+    }
+    public void createNewUser(User user) throws UsernameNotFoundException {
+        User newUser = userRepository.findUserByEmail(user.getEmail()).orElseThrow( () ->new UsernameNotFoundException(""));
+        userRepository.save(newUser);
     }
 
     public void deleteUser(Long id) {
@@ -52,11 +62,11 @@ public class UserService {
 
         if(user == null) throw new IllegalArgumentException("Empty Request Body");
 
-        if(user.getActive() != null){
-            userToUpdate.setActive(user.getActive());
+        if(user.getEnabled() != null){
+            userToUpdate.setEnabled(user.getEnabled());
         }
-        if(user.getName() != null){
-            userToUpdate.setName(user.getName());
+        if(user.getFirstName() != null){
+            userToUpdate.setFirstName(user.getFirstName());
         }
         if(user.getEmail() != null && !user.getEmail().isEmpty()){
             Optional<User> userOptional = userRepository.findUserByEmail(user.getEmail());
@@ -66,7 +76,41 @@ public class UserService {
                 userToUpdate.setEmail(user.getEmail());
             }
         }
+    }
 
 
+    public String signUpUser(User user){
+        boolean userExists = userRepository.findUserByEmail(user.getEmail()).isPresent();
+        if(userExists){
+            throw new IllegalStateException("Email Taken");
+        }
+
+        String encodedPassword = bCryptPasswordEncoder.encode(user.getPassword());
+        user.setPassword(encodedPassword);
+
+        userRepository.save(user);
+        //TODO: SEND CONFIRMATION TOKEN
+        String uid = UUID.randomUUID().toString();
+
+        ConfirmationToken token = new ConfirmationToken(
+                uid,
+                LocalDateTime.now(),
+                LocalDateTime.now().plusMinutes(15L),
+                user);
+
+        confimationTokenService.saveConfirmationToken(token);
+        return uid;
+    }
+
+    public void enableUser(Long id) {
+        Optional<User> user = userRepository.findById(id);
+
+        if(!user.isPresent()){
+            throw new IllegalStateException("No User Found");
+        }
+        User updateUser = user.get();
+        updateUser.setEnabled(true);
+
+        userRepository.save(updateUser);
     }
 }
