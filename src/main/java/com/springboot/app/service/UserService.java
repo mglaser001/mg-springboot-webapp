@@ -80,26 +80,22 @@ public class UserService implements UserDetailsService {
 
 
     public String signUpUser(User user){
-        boolean userExists = userRepository.findUserByEmail(user.getEmail()).isPresent();
-        if(userExists){
-            throw new IllegalStateException("Email Taken");
-        }
+        Optional<User> existingUser = userRepository.findUserByEmail(user.getEmail());
 
         String encodedPassword = bCryptPasswordEncoder.encode(user.getPassword());
         user.setPassword(encodedPassword);
 
+        if(existingUser.isPresent()){
+            if(existingUser.get().hasSameAttributes(user)){
+                //TODO: Expire previous tokens
+                expirePreviousTokens(existingUser.get());
+                return generateAndSaveToken(existingUser.get());
+            }
+            throw new IllegalStateException("Email Taken && Confirmed");
+        }
+
         userRepository.save(user);
-        //TODO: SEND CONFIRMATION TOKEN
-        String uid = UUID.randomUUID().toString();
-
-        ConfirmationToken token = new ConfirmationToken(
-                uid,
-                LocalDateTime.now(),
-                LocalDateTime.now().plusMinutes(15L),
-                user);
-
-        confimationTokenService.saveConfirmationToken(token);
-        return uid;
+        return generateAndSaveToken(user);
     }
 
     public void enableUser(Long id) {
@@ -112,5 +108,23 @@ public class UserService implements UserDetailsService {
         updateUser.setEnabled(true);
 
         userRepository.save(updateUser);
+    }
+
+    private void expirePreviousTokens(User user) {
+
+        confimationTokenService.expireTokensByUserId(user);
+
+    }
+    private String generateAndSaveToken(User user){
+        String uid = UUID.randomUUID().toString();
+
+        ConfirmationToken token = new ConfirmationToken(
+                uid,
+                LocalDateTime.now(),
+                LocalDateTime.now().plusMinutes(15L),
+                user);
+
+        confimationTokenService.saveConfirmationToken(token);
+        return uid;
     }
 }

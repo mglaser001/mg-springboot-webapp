@@ -68,6 +68,16 @@ public class User implements UserDetails {
         return Collections.singletonList(simpleGrantedAuthority);
     }
 
+    public boolean hasSameAttributes(User otherUser) {
+        if( this.firstName.equals(otherUser.getFirstName()) &&
+        this.lastName.equals(otherUser.getLastName()) &&
+        this.email.equals(otherUser.getEmail())){
+            return true;
+        }
+        return false;
+    }
+
+
     @Override
     public String getPassword() {
         return password;
